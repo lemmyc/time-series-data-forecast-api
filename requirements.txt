@@ -1,0 +1,7 @@
+fileinput
+pandas
+numpy
+flask
+flask_cors
+prophet
+waitress

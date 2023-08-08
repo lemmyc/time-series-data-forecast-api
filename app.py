@@ -1,4 +1,3 @@
-from distutils.log import debug
 from fileinput import filename
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
@@ -7,6 +6,7 @@ from flask import *
 from flask_cors import CORS, cross_origin
 import os
 from prophet import Prophet
+from waitress import serve
  
 UPLOAD_FOLDER = os.path.join('staticFiles', 'uploads')
  
@@ -111,5 +111,7 @@ def getPrediction():
     return "Filename is empty"
  
  
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    # app.run(host='0.0.0.0', port='7777')
+    serve(app, host='0.0.0.0', port='7777', threads = 1)
