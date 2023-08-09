@@ -19,13 +19,21 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
  
 app.secret_key = 'This is your secret key to utilize session in Flask'
  
- 
+
 @app.route('/', methods=['POST'])
+def wakeup_call():
+    if request.method == 'POST':
+      
+        result = {
+            "status": "success"
+        }
+        
+        return result
+@app.route('/upload', methods=['POST'])
 def uploadFile():
     if request.method == 'POST':
       # upload file flask
         f = request.files.get('file')
-
         filename = f.filename
         file_extension = filename.split('.')[1]
 
@@ -37,8 +45,16 @@ def uploadFile():
         f.save(os.path.join(app.config['UPLOAD_FOLDER'],filename))
  
         session['uploaded_data_file_path'] = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        
-        df = pd.read_csv(session['uploaded_data_file_path'])
+
+        if (file_extension == "csv"):
+            df = pd.read_csv(session['uploaded_data_file_path'])
+        elif (file_extension == "xlsx"):
+            df = pd.read_excel(session['uploaded_data_file_path'])
+        else:
+            return {
+                "status": "failed",
+                "msg":"Can not open file. Please select again !"
+            }
         result = {
             "columns": list(df.columns)
         }
@@ -61,8 +77,13 @@ def getPrediction():
 
         if (file_extension == "csv"):
             df = pd.read_csv(f"./staticFiles/uploads/{filename}")
-        else:
+        elif (file_extension == "xlsx"):
             df = pd.read_excel(f"./staticFiles/uploads/{filename}")
+        else:
+            return {
+                "status": "failed",
+                "msg":"Can not open file. Please select again !"
+            }
 
         df = df[[ds_col, y_col]].copy()
         df = df.iloc[-365:,:].copy()
@@ -81,6 +102,8 @@ def getPrediction():
                 "status": "failed",
                 "msg":"Values of \"y\" column is invalid. Please select again !"
             }
+        
+
         model = Prophet()
         model.fit(df)
         x_valid = model.make_future_dataframe(periods=num_future_ds, freq="D", include_history=False)
