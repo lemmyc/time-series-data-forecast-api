@@ -10,7 +10,7 @@ from waitress import serve
 from sklearn.preprocessing import MinMaxScaler
 from keras.preprocessing.sequence import TimeseriesGenerator
 from keras.models import Sequential
-from tensorflow.keras.layers import Dense, LSTM, Dropout
+from keras.layers import Dense, LSTM, Dropout
 
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(message)s')
