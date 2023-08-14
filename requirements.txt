@@ -5,4 +5,4 @@ flask_cors
 prophet
 waitress
 keras 
-sklearn
+scikit-learn
