@@ -10,8 +10,8 @@ from waitress import serve
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.preprocessing.sequence import TimeseriesGenerator
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, LSTM, Dropout
-
+from tensorflow.keras.layers import Dense, LSTM, GRU, Dropout
+from sklearn.impute import KNNImputer
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(message)s')
 
@@ -94,9 +94,6 @@ def getPrediction():
             }
 
         df = df[[ds_col, y_col]].copy()
-        df = df.iloc[-365:,:].copy()
-
-
         df.columns = ['ds', 'y']
         try:
             df['ds'] = pd.to_datetime(df['ds'], format=date_format)
@@ -110,6 +107,12 @@ def getPrediction():
                 "status": "failed",
                 "msg":"Values of \"y\" column is invalid. Please select again !"
             }
+        df.sort_values(by='ds', inplace=True)
+
+        df = df.iloc[-365:,:].copy()
+
+        if(df['y'].isnull().values.any()):
+            df['y'].interpolate(method='nearest', inplace=True)   
         
 
         if(model == "prophet"):
@@ -119,10 +122,11 @@ def getPrediction():
             y_pred = model.predict(x_valid)
             result_predicted_ds = list(x_valid["ds"])
             result_predicted_y = list(y_pred["yhat"])
-        elif(model == "lstm"):
+        elif(model == "lstm" or model == "lstm_gru"):
             x_valid = pd.DataFrame({"ds":pd.date_range(start=df["ds"].iloc[-1], periods=num_future_ds)})
             y = np.array(df["y"].iloc[-365:]).reshape(-1, 1)
             minmax_scaler = MinMaxScaler()
+            is_include_gru = model == "lstm_gru"
             scaled_y = minmax_scaler.fit_transform(y)
             n_input = 12
             n_features = 1
@@ -135,11 +139,18 @@ def getPrediction():
             model.add(Dropout(0.2))
             model.add(LSTM(units = 128, return_sequences=True))
             model.add(Dropout(0.2))
-            model.add( LSTM(units=128,  return_sequences=False))
+            model.add(LSTM(units=128, return_sequences=is_include_gru))
             model.add(Dropout(0.2))
+
+            if (is_include_gru):
+                model.add(GRU(units=128, return_sequences=True))
+                model.add(Dropout(0.2))
+                model.add(GRU(units=128, return_sequences=False))
+                model.add(Dropout(0.2))
+
             model.add(Dense(units=1, activation = "swish"))
             model.compile(optimizer='adam', loss='mse')
-            model.fit(generator, epochs = 50, batch_size = 32)
+            model.fit(generator, epochs = 20, batch_size = 16)
 
 
             test_predictions = []
@@ -157,7 +168,6 @@ def getPrediction():
             result_predicted_ds = list(x_valid["ds"])
             result_predicted_y = list(np.squeeze(y_pred, axis=(1, )))
 
-        # elif(model == "lstm_gru"):
 
         else:
             return {"status": "failed","msg":"Model name is wrong"}
