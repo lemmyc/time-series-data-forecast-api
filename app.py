@@ -12,6 +12,7 @@ from tensorflow.keras.preprocessing.sequence import TimeseriesGenerator
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LSTM, GRU, Dropout
 from sklearn.impute import KNNImputer
+from sklearn.svm import SVR
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(message)s')
 
@@ -126,12 +127,12 @@ def getPrediction():
             x_valid = pd.DataFrame({"ds":pd.date_range(start=df["ds"].iloc[-1], periods=num_future_ds)})
             y = np.array(df["y"].iloc[-365:]).reshape(-1, 1)
             minmax_scaler = MinMaxScaler()
-            is_include_gru = model == "lstm_gru"
             scaled_y = minmax_scaler.fit_transform(y)
             n_input = 12
             n_features = 1
-
             generator = TimeseriesGenerator(scaled_y, scaled_y, length=n_input, batch_size=1)
+            is_include_gru = model == "lstm_gru"
+
             model = Sequential()
             model.add(LSTM(units = 128, input_shape=(n_input, n_features), return_sequences=True))
             model.add(Dropout(0.2))
@@ -150,16 +151,14 @@ def getPrediction():
 
             model.add(Dense(units=1, activation = "swish"))
             model.compile(optimizer='adam', loss='mse')
-            model.fit(generator, epochs = 20, batch_size = 16)
-
+            model.fit(generator, epochs = 10, batch_size = 32)
+            
 
             test_predictions = []
-
             first_eval_batch = scaled_y[-n_input:]
             current_batch = first_eval_batch.reshape((1, n_input, n_features))
 
             for i in range(num_future_ds):
-
                 current_pred = model.predict(current_batch)[0]
                 test_predictions.append(current_pred)
                 current_batch = np.append(current_batch[:,1:,:],[[current_pred]],axis=1)
@@ -167,7 +166,18 @@ def getPrediction():
             y_pred = minmax_scaler.inverse_transform(test_predictions)
             result_predicted_ds = list(x_valid["ds"])
             result_predicted_y = list(np.squeeze(y_pred, axis=(1, )))
-
+        elif (model == "svm"):
+            X_train = df["ds"].iloc[-365:].values.reshape(-1, 1)
+            y = df["y"].iloc[-365:].values.reshape(-1, 1)
+            minmax_scaler = MinMaxScaler()
+            scaled_y = minmax_scaler.fit_transform(y)
+            model = SVR(kernel="rbf", degree=3, epsilon = 0.1, C=1, gamma="scale")
+            model.fit(X_train, np.squeeze(scaled_y))
+            X_pred = pd.DataFrame({"ds":pd.date_range(start=df["ds"].iloc[-1], periods=15)})
+            y_pred = model.predict(X_pred.values)
+            inv_y_pred = minmax_scaler.inverse_transform(y_pred.reshape(-1, 1))
+            result_predicted_ds = list(X_pred["ds"])
+            result_predicted_y = list(np.squeeze(inv_y_pred, axis=(1, )))
 
         else:
             return {"status": "failed","msg":"Model name is wrong"}
@@ -182,7 +192,7 @@ def getPrediction():
 
         result = {
             "status": "success",
-            "msg":"Model has been built successfully.",
+            "msg":"Model has been build successfully.",
             "data": {
                 "ds": result_ds,
                 "y": result_y,
