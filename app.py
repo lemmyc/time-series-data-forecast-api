@@ -49,7 +49,7 @@ def uploadFile():
         if(file_extension != "csv" and file_extension != "xlsx"):
             return {
                 "status": "failed",
-                "msg":"Invalid file type. Please select again."
+                "msg":"Invalid file type. Please select again !"
             }
         f.save(os.path.join(app.config['UPLOAD_FOLDER'],filename))
  
